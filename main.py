@@ -1,22 +1,40 @@
 #!/usr/bin/env python3
 
 from sys import argv
+
 from wikigraph.collector.fetcher import Fetcher, ArticleNotFound
 from wikigraph.collector.parser import LinkedArticleFinder
 
-article_name = argv[1] if len(argv) > 1 else "42"
+from wikigraph.models.network import ArticleNetwork
 
+start_article = argv[1] if len(argv) > 1 else "42"
+
+
+network = ArticleNetwork()
 fetcher = Fetcher()
-
-try:
-  html = fetcher.fetch(article_name)
-except ArticleNotFound as err:
-  print (err)
-  exit (1)
-
 parser = LinkedArticleFinder()
-parser.feed(html)
-linked_article_table = parser.collect()
+frange = set([start_article])
+closed = set()
 
-for article in linked_article_table:
-  print (article)
+while len(frange) > 0:
+  article = frange.pop()
+  if article not in closed:
+    print ("expanding", article)
+    closed.add(article)
+    network.add_article(article)
+    try:
+      html = fetcher.fetch(article)
+      parser.cleanup()
+      parser.feed(html)
+      linked_articles = parser.collect()
+      for link_dest in linked_articles:
+        print ("\tadd link", link_dest)
+        frange.add(link_dest)
+        network.add_article(link_dest)
+        network.add_link(article, link_dest)
+
+    except ArticleNotFound as err:
+      print (err)
+
+
+
